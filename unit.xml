@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="1" failures="0" skipped="0" tests="1" time="0.303" timestamp="2026-09-16T18:09:24.165385+00:00" hostname="c95c45d1675c"><testcase classname="" name="tests.test_event_automation" time="0.000"><error message="collection failure">/home/user/.venv/lib/python3.13/site-packages/_pytest/python.py:508: in importtestmodule
+    mod = import_path(
+/home/user/.venv/lib/python3.13/site-packages/_pytest/pathlib.py:596: in import_path
+    importlib.import_module(module_name)
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1395: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1360: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1331: in _find_and_load_unlocked
+    ???
+&lt;frozen importlib._bootstrap&gt;:935: in _load_unlocked
+    ???
+/home/user/.venv/lib/python3.13/site-packages/_pytest/assertion/rewrite.py:188: in exec_module
+    exec(co, module.__dict__)
+tests/test_event_automation.py:1: in &lt;module&gt;
+    from event_automation import EventProcessor
+E     File "/projects/challenge/src/event_automation.py", line 29
+E       def _dead_letter(self, event, error, attempts):
+E                                                      ^
+E   IndentationError: unindent does not match any outer indentation level</error></testcase></testsuite></testsuites>
