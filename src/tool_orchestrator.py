@@ -23,11 +23,11 @@ class PermissionDenied(Exception):
 class Orchestrator:
     def __init__(self):
         """Set up an empty registry."""
-        raise NotImplementedError
+        self.registry = {}
 
     def register(self, tool: Tool) -> None:
         """Add a tool. Re-registering the same name replaces it."""
-        raise NotImplementedError
+        self.registry[tool.name] = tool
 
     def resolve(self, capability: str) -> Tool:
         """Return the tool for a capability.
@@ -37,7 +37,15 @@ class Orchestrator:
               wins; ties break alphabetically by name (deterministic).
             - Unknown capability -> KeyError.
         """
-        raise NotImplementedError
+        candidates = [
+            t for t in self.registry.values() if capability in t.capabilities
+        ]
+        if not candidates:
+            raise KeyError(f"No tool found for capability: {capability}")
+        
+        # Sort by priority descending, then by name ascending
+        candidates.sort(key=lambda t: (-t.priority, t.name))
+        return candidates[0]
 
     def execute(self, capability: str, scopes: set[str], **kwargs):
         """Resolve and run one tool.
@@ -46,7 +54,10 @@ class Orchestrator:
             - If the tool has a required_scope not present in `scopes`,
               raise PermissionDenied WITHOUT executing the tool.
         """
-        raise NotImplementedError
+        tool = self.resolve(capability)
+        if tool.required_scope and tool.required_scope not in scopes:
+            raise PermissionDenied(f"Scope '{tool.required_scope}' required")
+        return tool.fn(**kwargs)
 
     def execute_parallel(self, tasks: list[dict], scopes: set[str]) -> list[dict]:
         """Run many tasks concurrently (threads); each task is
@@ -59,4 +70,18 @@ class Orchestrator:
               {"ok": True, "result": ...} or {"ok": False, "error": str}.
             - One failing/forbidden task must not affect the others.
         """
-        raise NotImplementedError
+        from concurrent.futures import ThreadPoolExecutor
+        def run_task(task: dict) -> dict:
+            try:
+                result = self.execute(
+                    task["capability"],
+                    scopes=scopes,
+                    **task.get("kwargs", {}),
+                )
+                return {"ok": True, "result": result}
+            except Exception as exc:
+                return {"ok": False, "error": str(exc)}
+
+        with ThreadPoolExecutor() as executor:
+            futures = [executor.submit(run_task, task) for task in tasks]
+            return [future.result() for future in futures]
