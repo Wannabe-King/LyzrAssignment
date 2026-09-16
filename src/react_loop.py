@@ -15,7 +15,10 @@ class ReActAgent:
         Must set up self.trace: list of step dicts, in order, each
         {"thought": str, "action": str | None, "observation": str | None}.
         """
-        raise NotImplementedError
+        self.trace=[]
+        self.llm=llm
+        self.tools=tools
+        self.max_iter=max_iterations
 
     def run(self, goal: str) -> dict:
         """Run the ReAct loop for a goal.
@@ -37,4 +40,61 @@ class ReActAgent:
               summary of the trace, non-empty>, "iterations": max_iterations}.
               Never loop past the cap; never raise.
         """
-        raise NotImplementedError
+        import json
+
+        for i in range(self.max_iter):
+            # Construction of the prompt including the trace
+            history = ""
+            for step in self.trace:
+                history += f"Thought: {step['thought']}\n"
+                if step['action']:
+                    history += f"Action: {step['action']}\nObservation: {step['observation']}\n"
+            
+            prompt = f"Goal: {goal}\n{history}\nDecision (JSON):"
+            
+            try:
+                raw_response=self.llm.complete(prompt)
+                decision=json.loads(raw_response)
+                thought=decision.get("thought", "")
+                
+                if "final" in decision:
+                    self.trace.append({"thought": thought, "action": None, "observation": None})
+                    return {
+                        "status": "done",
+                        "answer": decision["final"],
+                        "iterations": i + 1
+                    }
+                
+                action = decision.get("action")
+                args = decision.get("args", {})
+                
+                if action not in self.tools:
+                    observation = f"ERROR: unknown tool {action}"
+                else:
+                    try:
+                        observation = self.tools[action](**args)
+                    except Exception as e:
+                        observation = f"ERROR: {e}"
+                
+                self.trace.append({
+                    "thought": thought,
+                    "action": action,
+                    "observation": observation
+                })
+
+            except (json.JSONDecodeError, Exception):
+                self.trace.append({
+                    "thought": "Invalid or unparseable response",
+                    "action": None,
+                    "observation": "ERROR: invalid decision format"
+                })
+
+        # Graceful degradation after max iterations
+        summary = "Cap reached. Steps taken: " + "; ".join(
+            [f"{t['thought']} ({t['action'] or 'no action'})" for t in self.trace]
+        )
+        return {
+            "status": "max_iterations",
+            "answer": summary,
+            "iterations": self.max_iter
+        }
