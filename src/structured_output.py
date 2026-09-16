@@ -19,7 +19,10 @@ class StructuredAgent:
             - self.failures: list of dicts logging every failed attempt
               ({"attempt": int, "raw": str, "error": str})
         """
-        raise NotImplementedError
+        self.llm = llm
+        self.schema = schema
+        self.max_retries = max_retries
+        self.failures = []
 
     def build_prompt(self, text: str, previous_error: str | None = None) -> str:
         """Build the extraction prompt.
@@ -32,7 +35,16 @@ class StructuredAgent:
               so the model can correct itself. Retries that don't feed the error
               back are scored as incorrect.
         """
-        raise NotImplementedError
+
+        schema_json = self.schema.model_json_schema() 
+        prompt = (
+            f"Extract information from the following text into a JSON object "
+            f"which matches this schema: {schema_json}\n\n"
+            f"Text: {text}\n"
+        )
+        if previous_error:
+            prompt += f"\nError from previous attempt: {previous_error}\nPlease fix it and try again."
+        return prompt
 
     def extract(self, text: str) -> BaseModel:
         """Extract a validated instance of self.schema from text.
@@ -46,4 +58,19 @@ class StructuredAgent:
             - After exhausting retries, raise ExtractionError. All failures must
               remain logged in self.failures.
         """
-        raise NotImplementedError
+        previous_error = None
+        for attempt in range(self.max_retries +1):
+          structured_prompt = self.build_prompt(text, previous_error)
+          llm_raw_response= self.llm.complete(structured_prompt)
+          try:
+            return self.schema.model_validate_json(llm_raw_response)
+          except Exception as e:
+            previous_error=str(e)
+            self.failures.append({
+              "attempt": attempt,
+              "raw": llm_raw_response,
+              "error": previous_error
+            })
+        raise ExtractionError("max retries exceeded")
+
+
